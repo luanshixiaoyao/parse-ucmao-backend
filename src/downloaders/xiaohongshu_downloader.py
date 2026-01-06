@@ -24,15 +24,23 @@ class XiaohongshuDownloader(BaseDownloader):
         try:
             data_dict = json.loads(self.data)
             first_note_id = data_dict['note']['firstNoteId']
-            origin_video_key = data_dict['note']['noteDetailMap'][first_note_id]['note']['video']['consumer']['originVideoKey']
-            if not origin_video_key:
-                raise Exception("Failed to find originVideoKey in response")
-            video_key = origin_video_key.replace("\\u002F", "/")
-            video_url = "http://sns-video-bd.xhscdn.com/" + video_key
-            return video_url
-        except (KeyError, json.JSONDecodeError) as e:
-            logger.warning(f"Failed to parse video URL: {e}")
-
+            note_detail = data_dict['note']['noteDetailMap'][first_note_id]['note']
+            
+            # 新的视频地址路径
+            if 'video' in note_detail and 'media' in note_detail['video']:
+                # 获取最高质量的视频流
+                h264_streams = note_detail['video']['media']['stream']['h264']
+                if h264_streams:
+                    # 选择第一个流（通常是最高质量的）
+                    video_url = h264_streams[0]['masterUrl']
+                    return video_url.replace("\\u002F", "/")
+            
+            raise Exception("无法找到视频地址")
+        except Exception as e:
+            logger.error(f"解析视频URL失败: {e}")
+            logger.debug(f"完整note_detail数据: {json.dumps(note_detail, indent=2, ensure_ascii=False)}")
+            raise
+        
     def get_title_content(self):
         try:
             data_dict = json.loads(self.data)
@@ -47,11 +55,21 @@ class XiaohongshuDownloader(BaseDownloader):
         try:
             data_dict = json.loads(self.data)
             first_note_id = data_dict['note']['firstNoteId']
-            cover_url = data_dict['note']['noteDetailMap'][first_note_id]['note']['imageList'][0]['urlDefault']
-            cover_url = cover_url.replace("\\u002F", "/")
-            return cover_url
-        except (KeyError, json.JSONDecodeError) as e:
-            logger.warning(f"Failed to parse cover URL: {e}")
+            note_detail = data_dict['note']['noteDetailMap'][first_note_id]['note']
+            
+            # 新的封面图片路径
+            if 'imageList' in note_detail and note_detail['imageList']:
+                return note_detail['imageList'][0]['urlDefault']
+            
+            # 或者从video信息中获取
+            if 'video' in note_detail and 'image' in note_detail['video']:
+                # 这里可以根据需要构造封面URL
+                pass
+                
+            raise Exception("无法找到封面图片地址")
+        except Exception as e:
+            logger.warning(f"解析封面URL失败: {e}")
+            return None
 
 
 if __name__ == '__main__':
